@@ -4,18 +4,23 @@ FROM ubuntu:22.04
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Update system packages and install dependencies
+# Update and install Python, gdb, and essential tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.10 \
+    python3.10-venv \
+    python3-pip \
     build-essential \
     cmake \
     wget \
     unzip \
     git \
-    && rm -rf /var/lib/apt/lists/*
+    tini \
+    gdb && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set LibTorch version or download link as needed
-# For illustration, we're using version 2.0.0 for CPU (cxx11 ABI) in this example.
-ARG LIBTORCH_VERSION="2.0.0"
+ARG LIBTORCH_VERSION="2.5.1"
+ARG TORCHVISION_VERSION="0.20.1"
 ARG LIBTORCH_VARIANT="cpu"
 ARG LIBTORCH_BASE_URL="https://download.pytorch.org/libtorch"
 
@@ -32,16 +37,16 @@ RUN wget "${LIBTORCH_BASE_URL}/${LIBTORCH_VARIANT}/${LIBTORCH_PACKAGE}" --no-che
 ENV CMAKE_PREFIX_PATH="/usr/local/libtorch"
 ENV LD_LIBRARY_PATH="/usr/local/libtorch/lib:${LD_LIBRARY_PATH}"
 
-# By default, Ubuntu 22.04’s gcc supports C++20 (via -std=c++20).
-# You can override or confirm via a CMake configuration in your own build.
+# Default working directory
+WORKDIR /workspace/AIVideoGenerator
 
-# Optionally define a working directory for your C++ project
-WORKDIR /workspace
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir torch==${LIBTORCH_VERSION} torchvision==${TORCHVISION_VERSION} torchaudio && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy your project files here (if you like) and build
-# COPY . /workspace
-# RUN mkdir -p build && cd build && cmake -DCMAKE_CXX_STANDARD=20 .. && make -j$(nproc)
+# Set tini as the entry point for signal handling
+ENTRYPOINT ["tini", "--"]
 
 # Default command
 CMD ["/bin/bash"]
-
